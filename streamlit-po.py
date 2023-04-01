@@ -1,6 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import random
+import numpy as np
 import pandas
 from datetime import datetime
 from time import time
@@ -51,6 +51,7 @@ with st.sidebar:
     rows = st.file_uploader("**Upload your question/answers**")
     if rows:
         rows = pandas.read_csv(rows)
+        rows.set_index("No", inplace=True)
     else:
         rows = pandas.DataFrame(columns=["No", "Topic", "Question", "Answer"])
 
@@ -115,25 +116,25 @@ with tab1:
 
     if question or st.session_state.button_clicked:
         # randomly select question number
-        st.session_state.q_no = random.randint(0, no - 1)
-
+        st.session_state.q_no = np.random.choice(rows.index)
         # this 'if' checks if algorithm should use value from temp or new value (temp assigment in else)
         if st.session_state.button2_clicked:
-            st.markdown(
-                f'<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">{rows.iloc[st.session_state.q_no_temp].Question}</span></h1><h4>&mdash; Question no. {st.session_state.q_no_temp+1}</em></h4></div></div>',
-                unsafe_allow_html=True,
-            )
+            question_number = st.session_state.q_no_temp
         else:
-            st.markdown(
-                f'<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">{rows.iloc[st.session_state.q_no].Question}</span></h1><h4>&mdash; Question no. {st.session_state.q_no+1}</em></h4></div></div>',
-                unsafe_allow_html=True,
-            )
+            question_number = st.session_state.q_no
             # keep memory of question number in order to show answer
             st.session_state.q_no_temp = st.session_state.q_no
-
+        st.markdown(
+            '<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">'
+            + rows.loc[question_number, "Question"]
+            + f"</span></h1><h4>&mdash; Question no. {question_number}</em></h4></div></div>",
+            unsafe_allow_html=True,
+        )
         if answer:
             st.markdown(
-                f"<div class='answer'><span style='font-weight: bold; color:#6d7284;'>Answer to question number {st.session_state.q_no_temp+1}</span><br><br>{rows.iloc[st.session_state.q_no_temp].Answer}</div>",
+                "<div class='answer'><span style='font-weight: bold; color:#6d7284;'>"
+                + f"Answer to question number {question_number}</span>"
+                + f"<br><br>{rows.loc[question_number, 'Answer']}</div>",
                 unsafe_allow_html=True,
             )
             downcol1, downcol2 = st.columns(2)
