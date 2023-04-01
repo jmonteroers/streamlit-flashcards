@@ -48,7 +48,7 @@ with st.sidebar:
     st.write("**Adapted for your questions by:**")
     st.caption("Juan Montero de Espinosa Reina | https://github.com/jmonteroers")
     # Load the data with questions/answers
-    rows = st.file_uploader("**Upload your question/answer dataframe**")
+    rows = st.file_uploader("**Upload your question/answers**")
     if rows:
         rows = pandas.read_csv(rows)
     else:
@@ -162,13 +162,12 @@ with tab2:
     df = pandas.DataFrame(rows)
 
     # Use a text_input to get the keywords to filter the dataframe
-    text_search = st.text_input("Search in titles, questions and answers", value="")
+    text_search = st.text_input("Search in questions and answers", value="")
 
     # Filter the dataframe using masks
-    m1 = df["Topic"].str.contains(text_search)
     m2 = df["Question"].str.contains(text_search)
     m3 = df["Answer"].str.contains(text_search)
-    df_search = df[m1 | m2 | m3]
+    df_search = df[m2 | m3]
 
     # Another way to show the filtered results
     # Show the cards
@@ -182,7 +181,6 @@ with tab2:
             # draw the card
             with cols[n_row % N_cards_per_row]:
                 st.caption(f"Question {row['No']:0.0f}")
-                st.caption(f"{row['Topic'].strip()}")
                 st.markdown(f"**{row['Question'].strip()}**")
                 st.markdown(f"{row['Answer'].strip()}")
                 # with st.expander("Answer"):
