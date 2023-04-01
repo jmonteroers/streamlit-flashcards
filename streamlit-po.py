@@ -2,10 +2,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 import random
 import pandas
+from datetime import datetime
+from time import time
 
 # -------------- app config ---------------
 
-st.set_page_config(page_title="Product Owner Flashcards", page_icon="🚀")
+st.set_page_config(page_title="Learn with Flashcards", page_icon="🚀")
+RESULT_COLUMNS = ["No", "Epoch Time", "Correct"]
 
 # ---------------- functions ----------------
 
@@ -25,11 +28,46 @@ def callback2():
     st.session_state.button2_clicked = True
 
 
+def set_correct(correct: bool) -> None:
+    new_row = pandas.DataFrame(
+        [(st.session_state.q_no_temp, int(time()), correct)], columns=RESULT_COLUMNS
+    )
+    st.session_state.results = pandas.concat([st.session_state.results, new_row])
+
+
+@st.cache_data
+def convert_results(results):
+    return results.to_csv(index=False).encode("utf-8")
+
+
 # ---------------- SIDEBAR ----------------
 
 with st.sidebar:
-    st.write("**Streamlit app created by:**")
+    st.write("**Streamlit app originally created by:**")
     st.caption("Tomasz Hasiów | https://tomjohn.streamlit.app/")
+    st.write("**Adapted for your questions by:**")
+    st.caption("Juan Montero de Espinosa Reina | https://github.com/jmonteroers")
+    # Load the data with questions/answers
+    rows = st.file_uploader("**Upload your question/answer dataframe**")
+    if rows:
+        rows = pandas.read_csv(rows)
+    else:
+        rows = pandas.DataFrame(columns=["No", "Topic", "Question", "Answer"])
+
+    # Load previous results
+    results = st.file_uploader("**Upload previous results ('No' must match)**")
+    default_results = (
+        "results" in st.session_state and len(st.session_state.results) == 0
+    )
+    if results and default_results:
+        st.session_state.results = pandas.read_csv(results)
+
+    # Download results
+    if "results" in st.session_state:
+        csv = convert_results(st.session_state.results)
+        st.download_button(
+            "Download (CSV)", csv, file_name="results.csv", mime="text/csv"
+        )
 
 # ---------------- CSS ----------------
 
@@ -49,23 +87,15 @@ if "q_no" not in st.session_state:
 if "q_no_temp" not in st.session_state:
     st.session_state.q_no_temp = 0
 
+if "results" not in st.session_state:
+    st.session_state.results = pandas.DataFrame(columns=RESULT_COLUMNS)
+
+print(f"{datetime.now()}: {st.session_state.results}")
+
 # ---------------- Main page ----------------
 
 tab1, tab2 = st.tabs(["Flashcards", "Search engine"])
 
-
-# ok let's run the query
-rows = pandas.DataFrame(
-    {
-        "No": [1],
-        "Topic": ["Economics"],
-        "Question": ["What is inflation?"],
-        "Answer": ["The rate of growth in prices"],
-    }
-)
-# how many rows were returned?
-
-print(rows)
 with tab1:
     # st.title("Product Owner Interview Questions Flashcards")
     no = len(rows)
@@ -106,6 +136,19 @@ with tab1:
                 f"<div class='answer'><span style='font-weight: bold; color:#6d7284;'>Answer to question number {st.session_state.q_no_temp+1}</span><br><br>{rows.iloc[st.session_state.q_no_temp].Answer}</div>",
                 unsafe_allow_html=True,
             )
+            downcol1, downcol2 = st.columns(2)
+            with downcol1:
+                st.button(
+                    "Easy",
+                    on_click=lambda: set_correct(True),
+                    use_container_width=True,
+                )
+            with downcol2:
+                st.button(
+                    "Hard",
+                    on_click=lambda: set_correct(False),
+                    use_container_width=True,
+                )
             st.session_state.button2_clicked = False
 
     # this part normally should be on top however st.markdown always adds divs even it is rendering non visible parts?
@@ -116,10 +159,6 @@ with tab1:
     )
 
 with tab2:
-    # great use case: https://discuss.streamlit.io/t/create-a-search-engine-with-streamlit-and-google-sheets/39349
-
-    # convert data to pandas dataframe
-
     df = pandas.DataFrame(rows)
 
     # Use a text_input to get the keywords to filter the dataframe
