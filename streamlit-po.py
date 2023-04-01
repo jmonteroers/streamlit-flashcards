@@ -37,6 +37,11 @@ def set_correct(correct: bool) -> None:
 
 @st.cache_data
 def convert_results(results):
+    results = results.merge(
+        rows.reset_index()[["No", "Question"]],
+        on="No",
+        how="left",
+    )
     return results.to_csv(index=False).encode("utf-8")
 
 
@@ -51,24 +56,19 @@ with st.sidebar:
     rows = st.file_uploader("**Upload your question/answers**")
     if rows:
         rows = pandas.read_csv(rows)
+        rows.rename(
+            columns={
+                st.session_state.headers["answer"]: "Answer",
+                st.session_state.headers["question"]: "Question",
+                st.session_state.headers["index"]: "No",
+            },
+            inplace=True,
+        )
+        # uncomment to test images
+        # rows.dropna(subset=["Image"], inplace=True)
         rows.set_index("No", inplace=True)
     else:
         rows = pandas.DataFrame(columns=["No", "Topic", "Question", "Answer"])
-
-    # Load previous results
-    results = st.file_uploader("**Upload previous results ('No' must match)**")
-    default_results = (
-        "results" in st.session_state and len(st.session_state.results) == 0
-    )
-    if results and default_results:
-        st.session_state.results = pandas.read_csv(results)
-
-    # Download results
-    if "results" in st.session_state:
-        csv = convert_results(st.session_state.results)
-        st.download_button(
-            "Download (CSV)", csv, file_name="results.csv", mime="text/csv"
-        )
 
 # ---------------- CSS ----------------
 
@@ -91,13 +91,40 @@ if "q_no_temp" not in st.session_state:
 if "results" not in st.session_state:
     st.session_state.results = pandas.DataFrame(columns=RESULT_COLUMNS)
 
+if "headers" not in st.session_state:
+    st.session_state.headers = {
+        "index": "No",
+        "question": "Question",
+        "answer": "Answer",
+    }
+
 print(f"{datetime.now()}: {st.session_state.results}")
 
 # ---------------- Main page ----------------
 
-tab1, tab2 = st.tabs(["Flashcards", "Search engine"])
+tab_cards, tab_search, tab_headers, tab_results = st.tabs(
+    [
+        "Flashcards",
+        "Search engine",
+        "Headers",
+        "Results",
+    ]
+)
 
-with tab1:
+with tab_headers:
+    st.session_state.headers["index"] = st.text_input(
+        "Index", value=st.session_state.headers["index"]
+    )
+    st.session_state.headers["question"] = st.text_input(
+        "Question",
+        value=st.session_state.headers["question"],
+    )
+    st.session_state.headers["answer"] = st.text_input(
+        "Answer",
+        value=st.session_state.headers["answer"],
+    )
+
+with tab_cards:
     # st.title("Product Owner Interview Questions Flashcards")
     no = len(rows)
     st.caption("Currently we have " + str(no) + " questions in the database")
@@ -131,22 +158,32 @@ with tab1:
             unsafe_allow_html=True,
         )
         if answer:
+            # add image using link if available
+            if "Image" in rows.columns:
+                image_link = rows.loc[question_number, "Image"]
+                print(image_link)
+                if image_link and not pandas.isna(image_link):
+                    image_html = f'<br><img src="{rows.loc[question_number, "Image"]}" class="center" alt="Image" >'
+                else:
+                    image_html = ""
+            else:
+                image_html = ""
             st.markdown(
                 "<div class='answer'><span style='font-weight: bold; color:#6d7284;'>"
                 + f"Answer to question number {question_number}</span>"
-                + f"<br><br>{rows.loc[question_number, 'Answer']}</div>",
+                + f"<br><br>{rows.loc[question_number, 'Answer']}{image_html}</div>",
                 unsafe_allow_html=True,
             )
             downcol1, downcol2 = st.columns(2)
             with downcol1:
                 st.button(
-                    "Easy",
+                    "Incorrect",
                     on_click=lambda: set_correct(True),
                     use_container_width=True,
                 )
             with downcol2:
                 st.button(
-                    "Hard",
+                    "Correct",
                     on_click=lambda: set_correct(False),
                     use_container_width=True,
                 )
@@ -159,7 +196,7 @@ with tab1:
         unsafe_allow_html=True,
     )
 
-with tab2:
+with tab_search:
     df = pandas.DataFrame(rows)
 
     # Use a text_input to get the keywords to filter the dataframe
@@ -186,3 +223,26 @@ with tab2:
                 st.markdown(f"{row['Answer'].strip()}")
                 # with st.expander("Answer"):
                 #     st.markdown(f"*{row['Answer'].strip()}*")
+
+
+with tab_results:
+    # Load previous results
+    results = st.file_uploader("**Upload previous results ('No' must match)**")
+    default_results = (
+        "results" in st.session_state and len(st.session_state.results) == 0
+    )
+    if results and default_results:
+        st.session_state.results = pandas.read_csv(results)
+
+    # Download results
+    if "results" in st.session_state:
+        csv = convert_results(st.session_state.results)
+        st.download_button(
+            f"Download (CSV, {len(st.session_state.results)} rows)",
+            csv,
+            file_name="results.csv",
+            mime="text/csv",
+        )
+
+    st.write("### Sample Results")
+    st.write(st.session_state.results.head())
