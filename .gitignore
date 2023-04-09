@@ -1,3 +1,5 @@
 .streamlit/secrets.toml
 .venv
 .vscode
+Cards/
+.DS_Store
