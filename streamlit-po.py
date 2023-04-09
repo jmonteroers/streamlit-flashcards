@@ -1,14 +1,15 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import numpy as np
-import pandas
+import pandas as pd
 from datetime import datetime
 from time import time
 
 # -------------- app config ---------------
 
 st.set_page_config(page_title="Learn with Flashcards", page_icon="🚀")
-RESULT_COLUMNS = ["No", "Epoch Time", "Correct"]
+RESULT_COLUMNS = ["No", "Epoch Time", "Correct", "Question"]
+N_PREV = 2
 
 # ---------------- functions ----------------
 
@@ -29,21 +30,59 @@ def callback2():
 
 
 def set_correct(correct: bool) -> None:
-    new_row = pandas.DataFrame(
-        [(st.session_state.q_no_temp, int(time()), correct)], columns=RESULT_COLUMNS
+    new_row = pd.DataFrame(
+        [(st.session_state.q_no_temp, int(time()), correct, None)],
+        columns=RESULT_COLUMNS,
     )
-    st.session_state.results = pandas.concat([st.session_state.results, new_row])
+    st.session_state.results = pd.concat(
+        [st.session_state.results, new_row], ignore_index=True
+    )
 
 
 @st.cache_data
 def convert_results(results):
-    results = results.merge(
-        rows.reset_index()[["No", "Question"]],
-        on="No",
-        how="left",
-    )
+    if len(results):
+        if "Question" in results.columns:
+            results.drop(columns=["Question"], inplace=True)
+        results = results.merge(
+            rows.reset_index()[["No", "Question"]],
+            on="No",
+            how="left",
+        )
+        st.session_state.results = results
     return results.to_csv(index=False).encode("utf-8")
 
+
+@st.cache_data
+def get_weights(results) -> pd.Series:
+    def get_unstd_weight_by_question(res) -> float:
+        """Get some sort of probability of not getting it right"""
+        n_correct = res["Correct"].sum()
+        return 1.0 - (N_PREV / 2 + n_correct) / (N_PREV + len(res))
+
+    unstd_weight = results.groupby(["No"]).apply(get_unstd_weight_by_question)
+    # fill in words with no weights
+    unstd_weight = unstd_weight.reset_index()
+    unstd_weight.columns = ["No", "Weight"]
+    unstd_weight = unstd_weight.merge(
+        st.session_state.questions, on=["No"], how="right"
+    )
+    unstd_weight.set_index("No", inplace=True)
+    unstd_weight = unstd_weight["Weight"].fillna(0.5)
+    weights = unstd_weight / unstd_weight.sum()
+    return weights
+
+
+if (
+    "results" in st.session_state
+    and len(st.session_state.results)
+    and "questions" in st.session_state
+    and len(st.session_state.questions)
+):
+    results = st.session_state.results
+    sample_weights = get_weights(results)
+else:
+    sample_weights = None
 
 # ---------------- SIDEBAR ----------------
 
@@ -55,7 +94,7 @@ with st.sidebar:
     # Load the data with questions/answers
     rows = st.file_uploader("**Upload your question/answers**")
     if rows:
-        rows = pandas.read_csv(rows)
+        rows = pd.read_csv(rows)
         rows.rename(
             columns={
                 st.session_state.headers["answer"]: "Answer",
@@ -68,7 +107,9 @@ with st.sidebar:
         # rows.dropna(subset=["Image"], inplace=True)
         rows.set_index("No", inplace=True)
     else:
-        rows = pandas.DataFrame(columns=["No", "Topic", "Question", "Answer"])
+        rows = pd.DataFrame(columns=["No", "Topic", "Question", "Answer"])
+    st.session_state.questions = rows
+
 
 # ---------------- CSS ----------------
 
@@ -89,16 +130,21 @@ if "q_no_temp" not in st.session_state:
     st.session_state.q_no_temp = 0
 
 if "results" not in st.session_state:
-    st.session_state.results = pandas.DataFrame(columns=RESULT_COLUMNS)
+    st.session_state.results = pd.DataFrame(columns=RESULT_COLUMNS)
+
+if "questions" not in st.session_state:
+    st.session_state.questions = pd.DataFrame(
+        columns=["No", "Topic", "Question", "Answer"]
+    )
 
 if "headers" not in st.session_state:
     st.session_state.headers = {
-        "index": "No",
-        "question": "Question",
-        "answer": "Answer",
+        "index": "Index",
+        "question": "Word",
+        "answer": "Explanation",
     }
 
-print(f"{datetime.now()}: {st.session_state.results}")
+# print(f"{datetime.now()}: {st.session_state.results.head()}")
 
 # ---------------- Main page ----------------
 
@@ -143,7 +189,7 @@ with tab_cards:
 
     if question or st.session_state.button_clicked:
         # randomly select question number
-        st.session_state.q_no = np.random.choice(rows.index)
+        st.session_state.q_no = rows.sample(weights=sample_weights).index.values[0]
         # this 'if' checks if algorithm should use value from temp or new value (temp assigment in else)
         if st.session_state.button2_clicked:
             question_number = st.session_state.q_no_temp
@@ -162,7 +208,7 @@ with tab_cards:
             if "Image" in rows.columns:
                 image_link = rows.loc[question_number, "Image"]
                 print(image_link)
-                if image_link and not pandas.isna(image_link):
+                if image_link and not pd.isna(image_link):
                     image_html = f'<br><img src="{rows.loc[question_number, "Image"]}" class="center" alt="Image" >'
                 else:
                     image_html = ""
@@ -178,13 +224,13 @@ with tab_cards:
             with downcol1:
                 st.button(
                     "Incorrect",
-                    on_click=lambda: set_correct(True),
+                    on_click=lambda: set_correct(False),
                     use_container_width=True,
                 )
             with downcol2:
                 st.button(
                     "Correct",
-                    on_click=lambda: set_correct(False),
+                    on_click=lambda: set_correct(True),
                     use_container_width=True,
                 )
             st.session_state.button2_clicked = False
@@ -197,7 +243,7 @@ with tab_cards:
     )
 
 with tab_search:
-    df = pandas.DataFrame(rows)
+    df = pd.DataFrame(rows)
 
     # Use a text_input to get the keywords to filter the dataframe
     text_search = st.text_input("Search in questions and answers", value="")
@@ -220,7 +266,10 @@ with tab_search:
             with cols[n_row % N_cards_per_row]:
                 st.caption(f"Question {row['No']:0.0f}")
                 st.markdown(f"**{row['Question'].strip()}**")
-                st.markdown(f"{row['Answer'].strip()}")
+                if not pd.isna(row["Answer"]):
+                    st.markdown(f"{row['Answer'].strip()}")
+                if sample_weights is not None:
+                    st.write(f"Sample weight: {sample_weights[row['No']]:.2%}")
                 # with st.expander("Answer"):
                 #     st.markdown(f"*{row['Answer'].strip()}*")
 
@@ -232,7 +281,7 @@ with tab_results:
         "results" in st.session_state and len(st.session_state.results) == 0
     )
     if results and default_results:
-        st.session_state.results = pandas.read_csv(results)
+        st.session_state.results = pd.read_csv(results)
 
     # Download results
     if "results" in st.session_state:
@@ -245,4 +294,4 @@ with tab_results:
         )
 
     st.write("### Sample Results")
-    st.write(st.session_state.results.head())
+    st.write(st.session_state.results.tail())
