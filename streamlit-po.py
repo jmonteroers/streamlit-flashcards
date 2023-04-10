@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from time import time
+import plotly.express as px
 
 # -------------- app config ---------------
 
@@ -34,6 +35,7 @@ def set_correct(correct: bool) -> None:
         [(st.session_state.q_no_temp, int(time()), correct, None)],
         columns=RESULT_COLUMNS,
     )
+    new_row["Correct"] = new_row["Correct"].astype(bool)
     st.session_state.results = pd.concat(
         [st.session_state.results, new_row], ignore_index=True
     )
@@ -73,6 +75,55 @@ def get_weights(results) -> pd.Series:
     return weights
 
 
+def create_date_plot(df, y, title, hover_data):
+    fig = px.line(
+        df,
+        x="Date",
+        y=y,
+        title=title,
+        hover_data=hover_data,
+    )
+    fig.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list(
+                [
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="YTD", step="year", stepmode="todate"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all"),
+                ]
+            )
+        ),
+    )
+    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+
+def plot_results(results):
+    if not len(results):
+        return
+    results = results.copy()
+    results["Date"] = pd.to_datetime(results["Epoch Time"], unit="s").dt.date
+    results_perc = results.groupby(["Date"])[["Correct"]].mean().reset_index()
+    results_sum = results.groupby(["Date"])[["Correct"]].count().reset_index()
+    results_sum.rename(columns={"Correct": "Questions"}, inplace=True)
+
+    create_date_plot(
+        results_perc,
+        y="Correct",
+        title="Percentage Correct Over Time",
+        hover_data={"Correct": ":.00%"},
+    )
+    create_date_plot(
+        results_sum,
+        y="Questions",
+        title="Questions Answered Over Time",
+        hover_data=None,
+    )
+
+
+# ---------------- Prepare Results --------
 if (
     "results" in st.session_state
     and len(st.session_state.results)
@@ -295,3 +346,6 @@ with tab_results:
 
     st.write("### Sample Results")
     st.write(st.session_state.results.tail())
+
+    st.write("### Evolution over Time")
+    plot_results(st.session_state.results)
