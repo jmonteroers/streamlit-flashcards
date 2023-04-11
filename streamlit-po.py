@@ -258,7 +258,6 @@ with tab_cards:
             # add image using link if available
             if "Image" in rows.columns:
                 image_link = rows.loc[question_number, "Image"]
-                print(image_link)
                 if image_link and not pd.isna(image_link):
                     image_html = f'<br><img src="{rows.loc[question_number, "Image"]}" class="center" alt="Image" >'
                 else:
@@ -271,6 +270,14 @@ with tab_cards:
                 + f"<br><br>{rows.loc[question_number, 'Answer']}{image_html}</div>",
                 unsafe_allow_html=True,
             )
+            if (
+                "Formula" in rows.columns
+                and not pd.isnan(rows["Formula"])
+                and rows["Formula"]
+            ):
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("##### Formula\n")
+                st.latex(rows.loc[question_number, "Formula"])
             downcol1, downcol2 = st.columns(2)
             with downcol1:
                 st.button(
