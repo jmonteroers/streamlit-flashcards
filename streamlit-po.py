@@ -272,8 +272,8 @@ with tab_cards:
             )
             if (
                 "Formula" in rows.columns
-                and not pd.isnan(rows["Formula"])
-                and rows["Formula"]
+                and not pd.isna(rows.loc[question_number, "Formula"])
+                and rows.loc[question_number, "Formula"]
             ):
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("##### Formula\n")
