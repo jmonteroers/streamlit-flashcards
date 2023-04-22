@@ -1,8 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components
-import numpy as np
 import pandas as pd
-from datetime import datetime
 from time import time
 import plotly.express as px
 
@@ -22,40 +19,61 @@ def local_css(file_name):
 
 
 # callbacks
-def callback():
-    st.session_state.button_clicked = True
+def callback_question_once_clicked():
+    st.session_state.question_once_clicked = True
 
 
-def callback2():
-    st.session_state.button2_clicked = True
+def callback_answer():
+    st.session_state.show_answer_clicked = True
 
 
-def set_correct(correct: bool) -> None:
+def set_correct(question_number, correct: bool) -> None:
     new_row = pd.DataFrame(
-        [(st.session_state.q_no_temp, int(time()), correct, None)],
+        [(question_number, int(time()), correct, "")],
         columns=RESULT_COLUMNS,
     )
-    new_row["Correct"] = new_row["Correct"].astype(bool)
     st.session_state.results = pd.concat(
         [st.session_state.results, new_row], ignore_index=True
     )
 
 
 @st.cache_data
-def convert_results(results):
-    if len(results):
-        if "Question" in results.columns:
-            results.drop(columns=["Question"], inplace=True)
-        results = results.merge(
-            questions.reset_index()[["No", "Question"]],
-            on="No",
-            how="left",
-        )
-        st.session_state.results = results
-    return results.to_csv(index=False).encode("utf-8")
+def upload_results(raw_results):
+    print("Reloading results...")
+    results = pd.read_csv(raw_results)
+    st.session_state.results = results
+
+
+def add_questions_to_results(results: pd.DataFrame):
+    if "Question" in results.columns:
+        results.drop(columns=["Question"], inplace=True)
+    results = results.merge(
+        questions.reset_index()[["No", "Question"]],
+        on="No",
+        how="left",
+    )
+    return results
 
 
 @st.cache_data
+def get_questions(raw_questions):
+    st.session_state.results = create_default_results()
+    questions = pd.read_csv(raw_questions)
+    questions.rename(
+        columns={
+            st.session_state.headers["answer"]: "Answer",
+            st.session_state.headers["question"]: "Question",
+            st.session_state.headers["index"]: "No",
+            st.session_state.headers["topic"]: "Topic",
+        },
+        inplace=True,
+    )
+    # uncomment to test images
+    # questions.dropna(subset=["Image"], inplace=True)
+    questions.set_index("No", inplace=True)
+    return questions
+
+
 def get_weights(results) -> pd.Series:
     def get_unstd_weight_by_question(res) -> float:
         """Get some sort of probability of not getting it right"""
@@ -75,6 +93,7 @@ def get_weights(results) -> pd.Series:
     return weights
 
 
+@st.cache_data
 def create_date_plot(df, y, title, hover_data):
     fig = px.line(
         df,
@@ -101,8 +120,6 @@ def create_date_plot(df, y, title, hover_data):
 
 
 def plot_results(results):
-    if not len(results):
-        return
     results = results.copy()
     results["Date"] = pd.to_datetime(results["Epoch Time"], unit="s").dt.date
     results_perc = results.groupby(["Date"])[["Correct"]].mean().reset_index()
@@ -121,6 +138,16 @@ def plot_results(results):
         title="Questions Answered Over Time",
         hover_data=None,
     )
+
+
+def get_time_lapse(df, datecol: str) -> int:
+    return df[datecol].max() - df[datecol].min()
+
+
+def create_default_results():
+    df = pd.DataFrame(columns=RESULT_COLUMNS)
+    df.Correct = df.Correct.astype(bool)
+    return df
 
 
 # ---------------- Prepare Results --------
@@ -143,22 +170,11 @@ with st.sidebar:
     st.write("**Adapted for your questions by:**")
     st.caption("Juan Montero de Espinosa Reina | https://github.com/jmonteroers")
     # Load the data with questions/answers
-    questions = st.file_uploader("**Upload your question/answers**")
-    if questions:
-        questions = pd.read_csv(questions)
-        questions.rename(
-            columns={
-                st.session_state.headers["answer"]: "Answer",
-                st.session_state.headers["question"]: "Question",
-                st.session_state.headers["index"]: "No",
-            },
-            inplace=True,
-        )
-        # uncomment to test images
-        # questions.dropna(subset=["Image"], inplace=True)
-        questions.set_index("No", inplace=True)
-    else:
+    raw_questions = st.file_uploader("**Upload your question/answers**")
+    if raw_questions is None:
         questions = pd.DataFrame(columns=["No", "Topic", "Question", "Answer"])
+    else:
+        questions = get_questions(raw_questions)
     st.session_state.questions = questions
 
     # Selecting a topic and filtering questions
@@ -182,11 +198,11 @@ local_css("style.css")
 
 # ---------------- SESSION STATE ----------------
 
-if "button_clicked" not in st.session_state:
-    st.session_state.button_clicked = False
+if "question_once_clicked" not in st.session_state:
+    st.session_state.question_once_clicked = False
 
-if "button2_clicked" not in st.session_state:
-    st.session_state.button2_clicked = False
+if "show_answer_clicked" not in st.session_state:
+    st.session_state.show_answer_clicked = False
 
 if "q_no" not in st.session_state:
     st.session_state.q_no = 0
@@ -195,7 +211,7 @@ if "q_no_temp" not in st.session_state:
     st.session_state.q_no_temp = 0
 
 if "results" not in st.session_state:
-    st.session_state.results = pd.DataFrame(columns=RESULT_COLUMNS)
+    st.session_state.results = create_default_results()
 
 if "questions" not in st.session_state:
     st.session_state.questions = pd.DataFrame(
@@ -207,6 +223,7 @@ if "headers" not in st.session_state:
         "index": "Index",
         "question": "Word",
         "answer": "Explanation",
+        "topic": "Topic",
     }
 
 # print(f"{datetime.now()}: {st.session_state.results.head()}")
@@ -224,7 +241,8 @@ tab_cards, tab_search, tab_headers, tab_results = st.tabs(
 
 with tab_headers:
     st.session_state.headers["index"] = st.text_input(
-        "Index", value=st.session_state.headers["index"]
+        "Index",
+        value=st.session_state.headers["index"],
     )
     st.session_state.headers["question"] = st.text_input(
         "Question",
@@ -234,9 +252,13 @@ with tab_headers:
         "Answer",
         value=st.session_state.headers["answer"],
     )
+    st.session_state.headers["topic"] = st.text_input(
+        "Topic",
+        value=st.session_state.headers["topic"],
+    )
 
 with tab_cards:
-    # st.title("Product Owner Interview Questions Flashcards")
+    st.title("Your Flashcards")
     no = len(questions)
     st.caption("Currently we have " + str(no) + " questions in the database")
 
@@ -245,19 +267,25 @@ with tab_cards:
     col1, col2 = st.columns(2)
     with col1:
         question = st.button(
-            "Draw question", on_click=callback, key="Draw", use_container_width=True
+            "Draw question",
+            on_click=callback_question_once_clicked,
+            key="Draw",
+            use_container_width=True,
         )
     with col2:
         answer = st.button(
-            "Show answer", on_click=callback2, key="Answer", use_container_width=True
+            "Show answer",
+            on_click=callback_answer,
+            key="Answer",
+            use_container_width=True,
         )
 
-    if len(questions) and (question or st.session_state.button_clicked):
+    if len(questions) and (question or st.session_state.question_once_clicked):
         # randomly select question number
         st.session_state.q_no = questions.sample(weights=sample_weights).index.values[0]
 
-        # this 'if' checks if algorithm should use value from temp or new value (temp assigment in else)
-        if st.session_state.button2_clicked:
+        # this 'if' checks if algorithm should use value from temp or new value
+        if st.session_state.show_answer_clicked:
             question_number = st.session_state.q_no_temp
         else:
             question_number = st.session_state.q_no
@@ -297,16 +325,16 @@ with tab_cards:
             with downcol1:
                 st.button(
                     "Incorrect",
-                    on_click=lambda: set_correct(False),
+                    on_click=lambda: set_correct(question_number, False),
                     use_container_width=True,
                 )
             with downcol2:
                 st.button(
                     "Correct",
-                    on_click=lambda: set_correct(True),
+                    on_click=lambda: set_correct(question_number, True),
                     use_container_width=True,
                 )
-            st.session_state.button2_clicked = False
+            st.session_state.show_answer_clicked = False
 
     # this part normally should be on top however st.markdown always adds divs even it is rendering non visible parts?
 
@@ -348,25 +376,27 @@ with tab_search:
 
 with tab_results:
     # Load previous results
-    results = st.file_uploader("**Upload previous results ('No' must match)**")
-    default_results = (
-        "results" in st.session_state and len(st.session_state.results) == 0
-    )
-    if results and default_results:
-        st.session_state.results = pd.read_csv(results)
-
+    raw_results = st.file_uploader("**Upload previous results ('No' must match)**")
+    if raw_results:
+        upload_results(raw_results)
+    st.session_state.results = add_questions_to_results(st.session_state.results)
     # Download results
-    if "results" in st.session_state:
-        csv = convert_results(st.session_state.results)
-        st.download_button(
-            f"Download (CSV, {len(st.session_state.results)} rows)",
-            csv,
-            file_name="results.csv",
-            mime="text/csv",
-        )
+    csv = st.session_state.results.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        f"Download (CSV, {len(st.session_state.results)} rows)",
+        csv,
+        file_name="results.csv",
+        mime="text/csv",
+    )
 
     st.write("### Sample Results")
     st.write(st.session_state.results.tail())
 
     st.write("### Evolution over Time")
-    plot_results(st.session_state.results)
+    if (
+        len(st.session_state.results)
+        and get_time_lapse(st.session_state.results, "Epoch Time") > 24 * 60**2
+    ):
+        plot_results(st.session_state.results)
+    else:
+        st.write("Sorry, to show evolution we need results more than one day apart")
