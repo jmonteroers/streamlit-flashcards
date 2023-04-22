@@ -47,7 +47,7 @@ def convert_results(results):
         if "Question" in results.columns:
             results.drop(columns=["Question"], inplace=True)
         results = results.merge(
-            rows.reset_index()[["No", "Question"]],
+            questions.reset_index()[["No", "Question"]],
             on="No",
             how="left",
         )
@@ -143,10 +143,10 @@ with st.sidebar:
     st.write("**Adapted for your questions by:**")
     st.caption("Juan Montero de Espinosa Reina | https://github.com/jmonteroers")
     # Load the data with questions/answers
-    rows = st.file_uploader("**Upload your question/answers**")
-    if rows:
-        rows = pd.read_csv(rows)
-        rows.rename(
+    questions = st.file_uploader("**Upload your question/answers**")
+    if questions:
+        questions = pd.read_csv(questions)
+        questions.rename(
             columns={
                 st.session_state.headers["answer"]: "Answer",
                 st.session_state.headers["question"]: "Question",
@@ -155,11 +155,25 @@ with st.sidebar:
             inplace=True,
         )
         # uncomment to test images
-        # rows.dropna(subset=["Image"], inplace=True)
-        rows.set_index("No", inplace=True)
+        # questions.dropna(subset=["Image"], inplace=True)
+        questions.set_index("No", inplace=True)
     else:
-        rows = pd.DataFrame(columns=["No", "Topic", "Question", "Answer"])
-    st.session_state.questions = rows
+        questions = pd.DataFrame(columns=["No", "Topic", "Question", "Answer"])
+    st.session_state.questions = questions
+
+    # Selecting a topic and filtering questions
+    available_topics = (
+        ["No selection"] + questions.Topic.unique().tolist()
+        if "Topic" in questions.columns
+        else []
+    )
+    available_topics = [str(topic) for topic in available_topics]
+    selected_topic = st.selectbox("Select a Topic", options=available_topics)
+    if selected_topic is not None:
+        if selected_topic == "nan":
+            questions = questions.loc[pd.isna(questions.Topic)]
+        elif selected_topic != "No selection":
+            questions = questions.loc[questions.Topic == selected_topic]
 
 
 # ---------------- CSS ----------------
@@ -223,7 +237,7 @@ with tab_headers:
 
 with tab_cards:
     # st.title("Product Owner Interview Questions Flashcards")
-    no = len(rows)
+    no = len(questions)
     st.caption("Currently we have " + str(no) + " questions in the database")
 
     # ---------------- Questions & answers logic ----------------
@@ -238,9 +252,10 @@ with tab_cards:
             "Show answer", on_click=callback2, key="Answer", use_container_width=True
         )
 
-    if question or st.session_state.button_clicked:
+    if len(questions) and (question or st.session_state.button_clicked):
         # randomly select question number
-        st.session_state.q_no = rows.sample(weights=sample_weights).index.values[0]
+        st.session_state.q_no = questions.sample(weights=sample_weights).index.values[0]
+
         # this 'if' checks if algorithm should use value from temp or new value (temp assigment in else)
         if st.session_state.button2_clicked:
             question_number = st.session_state.q_no_temp
@@ -250,16 +265,16 @@ with tab_cards:
             st.session_state.q_no_temp = st.session_state.q_no
         st.markdown(
             '<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">'
-            + rows.loc[question_number, "Question"]
+            + questions.loc[question_number, "Question"]
             + f"</span></h1><h4>&mdash; Question no. {question_number}</em></h4></div></div>",
             unsafe_allow_html=True,
         )
         if answer:
             # add image using link if available
-            if "Image" in rows.columns:
-                image_link = rows.loc[question_number, "Image"]
+            if "Image" in questions.columns:
+                image_link = questions.loc[question_number, "Image"]
                 if image_link and not pd.isna(image_link):
-                    image_html = f'<br><img src="{rows.loc[question_number, "Image"]}" class="center" alt="Image" >'
+                    image_html = f'<br><img src="{questions.loc[question_number, "Image"]}" class="center" alt="Image" >'
                 else:
                     image_html = ""
             else:
@@ -267,17 +282,17 @@ with tab_cards:
             st.markdown(
                 "<div class='answer'><span style='font-weight: bold; color:#6d7284;'>"
                 + f"Answer to question number {question_number}</span>"
-                + f"<br><br>{rows.loc[question_number, 'Answer']}{image_html}</div>",
+                + f"<br><br>{questions.loc[question_number, 'Answer']}{image_html}</div>",
                 unsafe_allow_html=True,
             )
             if (
-                "Formula" in rows.columns
-                and not pd.isna(rows.loc[question_number, "Formula"])
-                and rows.loc[question_number, "Formula"]
+                "Formula" in questions.columns
+                and not pd.isna(questions.loc[question_number, "Formula"])
+                and questions.loc[question_number, "Formula"]
             ):
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("##### Formula\n")
-                st.latex(rows.loc[question_number, "Formula"])
+                st.latex(questions.loc[question_number, "Formula"])
             downcol1, downcol2 = st.columns(2)
             with downcol1:
                 st.button(
@@ -301,8 +316,7 @@ with tab_cards:
     )
 
 with tab_search:
-    df = pd.DataFrame(rows)
-
+    df = questions
     # Use a text_input to get the keywords to filter the dataframe
     text_search = st.text_input("Search in questions and answers", value="")
 
