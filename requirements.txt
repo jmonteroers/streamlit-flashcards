@@ -3,3 +3,4 @@ pyparsing
 pandas
 streamlit
 plotly
+gtts

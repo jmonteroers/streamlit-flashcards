@@ -3,3 +3,4 @@
 .vscode
 Cards/
 .DS_Store
+__pycache__
