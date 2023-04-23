@@ -1,9 +1,10 @@
 import pandas as pd
-from time import time
+from time import time, sleep
 import streamlit as st
 import plotly.express as px
 from gtts import gTTS
 from tempfile import NamedTemporaryFile
+
 
 RESULT_COLUMNS = ["No", "Epoch Time", "Correct", "Question"]
 N_PREV = 2
@@ -132,10 +133,15 @@ def create_default_results():
     return df
 
 
-def text_to_speech(play, txt: str, lang: str = "en") -> None:
+def text_to_speech(play, txt: str, lang: str = "en", **kwargs) -> None:
     """Convert text into binary and send into play function"""
     mp3_fp = NamedTemporaryFile()
-    tts = gTTS(txt, lang=lang)
+    tts = gTTS(txt, lang=lang, **kwargs)
+    sleep(0.25)
     tts.write_to_fp(mp3_fp)
     play(mp3_fp)
     mp3_fp.close()
+
+
+def create_audio_button(txt, **kwargs):
+    text_to_speech(lambda b: st.audio(b.name, format="audio/mpeg"), txt, **kwargs)

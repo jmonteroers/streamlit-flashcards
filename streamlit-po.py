@@ -9,6 +9,7 @@ from backend import (
     plot_results,
     get_time_lapse,
     create_default_results,
+    create_audio_button,
 )
 
 # -------------- app config ---------------
@@ -73,6 +74,8 @@ with st.sidebar:
             questions = questions.loc[pd.isna(questions.Topic)]
         elif selected_topic != "No selection":
             questions = questions.loc[questions.Topic == selected_topic]
+
+    read_question = st.checkbox("Audio for Questions")
 
 
 # ---------------- CSS ----------------
@@ -174,12 +177,16 @@ with tab_cards:
             question_number = st.session_state.q_no
             # keep memory of question number in order to show answer
             st.session_state.q_no_temp = st.session_state.q_no
+
+        selected_question = questions.loc[question_number, "Question"]
         st.markdown(
             '<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">'
-            + questions.loc[question_number, "Question"]
+            + selected_question
             + f"</span></h1><h4>&mdash; Question no. {question_number}</em></h4></div></div>",
             unsafe_allow_html=True,
         )
+        if read_question:
+            create_audio_button(selected_question)
         if answer:
             # add image using link if available
             if "Image" in questions.columns:
