@@ -75,7 +75,9 @@ with st.sidebar:
         elif selected_topic != "No selection":
             questions = questions.loc[questions.Topic == selected_topic]
 
-    read_question = st.checkbox("Audio for Questions")
+    read_question_lang = st.selectbox(
+        "Select Audio for Questions", options=["No Audio", "en", "es", "de"]
+    )
 
 
 # ---------------- CSS ----------------
@@ -185,8 +187,8 @@ with tab_cards:
             + f"</span></h1><h4>&mdash; Question no. {question_number}</em></h4></div></div>",
             unsafe_allow_html=True,
         )
-        if read_question:
-            create_audio_button(selected_question)
+        if read_question_lang.lower() != "no audio":
+            create_audio_button(selected_question, lang=read_question_lang)
         if answer:
             # add image using link if available
             if "Image" in questions.columns:

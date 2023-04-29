@@ -133,10 +133,10 @@ def create_default_results():
     return df
 
 
-def text_to_speech(play, txt: str, lang: str = "en", **kwargs) -> None:
+def text_to_speech(play, txt: str, **kwargs) -> None:
     """Convert text into binary and send into play function"""
     mp3_fp = NamedTemporaryFile()
-    tts = gTTS(txt, lang=lang, **kwargs)
+    tts = gTTS(txt, **kwargs)
     sleep(0.25)
     tts.write_to_fp(mp3_fp)
     play(mp3_fp)
