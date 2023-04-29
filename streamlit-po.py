@@ -182,7 +182,7 @@ with tab_cards:
 
         selected_question = questions.loc[question_number, "Question"]
         st.markdown(
-            '<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#ffffff">'
+            '<div class="blockquote-wrapper"><div class="blockquote"><h1><span style="color:#888888">'
             + selected_question
             + f"</span></h1><h4>&mdash; Question no. {question_number}</em></h4></div></div>",
             unsafe_allow_html=True,
