@@ -274,6 +274,10 @@ with tab_search:
                     st.markdown(f"{row['Answer'].strip()}")
                 if sample_weights is not None:
                     st.write(f"Sample weight: {sample_weights[row['No']]:.2%}")
+                if "Formula" in questions.columns and not pd.isna(row["Formula"]):
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("**Formula**\n")
+                    st.latex(row["Formula"])
                 # with st.expander("Answer"):
                 #     st.markdown(f"*{row['Answer'].strip()}*")
 
