@@ -1,8 +1,10 @@
 import pandas as pd
+import numpy as np
 from time import time, sleep
 import streamlit as st
 import plotly.express as px
 from gtts import gTTS
+from typing import List
 from tempfile import NamedTemporaryFile
 
 
@@ -74,6 +76,15 @@ def get_weights(results) -> pd.Series:
     unstd_weight = unstd_weight["Weight"].fillna(0.5)
     weights = unstd_weight / unstd_weight.sum()
     return weights
+
+
+def find_hard_questions(sample_weights, n_questions) -> List[str]:
+    """A hard question is that whose score is larger than 1/(# questions). Output from harder to easier"""
+    return (
+        sample_weights.loc[sample_weights > (1 / n_questions)]
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
 
 
 @st.cache_data

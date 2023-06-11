@@ -10,6 +10,7 @@ from backend import (
     get_time_lapse,
     create_default_results,
     create_audio_button,
+    find_hard_questions,
 )
 
 # -------------- app config ---------------
@@ -236,14 +237,25 @@ with tab_cards:
     )
 
 with tab_search:
-    df = questions
+    # Find hard questions
+    if sample_weights is not None and len(questions):
+        hard_questions = find_hard_questions(sample_weights, len(questions))
+        st.write(
+            "**List of hard questions (harder first)**: ",
+            ", ".join([str(q) for q in hard_questions]),
+        )
+    df = questions.copy()
     # Use a text_input to get the keywords to filter the dataframe
-    text_search = st.text_input("Search in questions and answers", value="")
+    text_search = st.text_input(
+        "Search in question number, questions and answers", value=""
+    )
 
     # Filter the dataframe using masks
+    df = df.reset_index()
+    m1 = df["No"].astype(str).str.contains(text_search)
     m2 = df["Question"].str.contains(text_search)
     m3 = df["Answer"].str.contains(text_search)
-    df_search = df[m2 | m3]
+    df_search = df[m1 | m2 | m3]
 
     # Another way to show the filtered results
     # Show the cards
